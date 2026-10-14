@@ -21,19 +21,37 @@ def carregar_base_conhecimento_direta():
     return "Aviso: A base de conhecimento detalhada não foi encontrada."
 
 def perguntar_ao_agente(duvida, base_conhecimento):
-    # Restringe a base enviada para uma quantidade segura de tokens
-    base_resumida = base_conhecimento[:8000]
+    # Procura inteligente: se a dúvida citar uma opção específica (ex: 600, 004), 
+    # tenta fatiar a base em torno desse termo para garantir que a IA recebe o contexto exato.
+    duvida_lower = duvida.lower()
+    base_resumida = base_conhecimento
+    
+    if "tela" in duvida_lower or "opção" in duvida_lower or "opcao" in duvida_lower:
+        import re
+        numeros = re.findall(r'\d+', duvida)
+        if numeros:
+            termo_busca = numeros[0] # ex: "600" ou "004"
+            pos = base_conhecimento.find(termo_busca)
+            if pos != -1:
+                # Pega um bloco de 15.000 caracteres em torno da menção encontrada
+                inicio = max(0, pos - 3000)
+                fim = min(len(base_conhecimento), pos + 12000)
+                base_resumida = base_conhecimento[inicio:fim]
+
+    # Se não encontrar um termo específico, usa uma fatia ampla inicial
+    if len(base_resumida) > 20000:
+        base_resumida = base_resumida[:20000]
 
     prompt_sistema = (
         "Você é um assistente técnico operacional especialista no sistema TMS SSW. "
         "Sua função é ler a documentação técnica fornecida e responder à dúvida do operador de forma clara, "
-        "indicando sempre a opção correta do menu (ex: Opção 004, Opção 038, etc.) e o passo a passo prático.\n"
-        "Seja direto e objetivo, sem falas introdutórias genéricas."
+        "indicando sempre a opção correta do menu (ex: Opção 600, Opção 004, etc.) e o passo a passo prático.\n"
+        "Seja direto e objetivo, explicando exatamente o que a tela ou rotina faz com base na documentação."
     )
 
     prompt_usuario = f"DOCUMENTAÇÃO TÉCNICA SSW:\n{base_resumida}\n\nPERGUTA DO OPERADOR: {duvida}"
 
-    # Lista ampliada com os modelos atualmente ativos na infraestrutura da Groq
+    # Modelos disponíveis na Groq
     modelos_disponiveis = [
         "openai/gpt-oss-20b",
         "openai/gpt-oss-120b",
@@ -59,7 +77,7 @@ def perguntar_ao_agente(duvida, base_conhecimento):
         except Exception as e:
             erros.append(f"{modelo}: {e}")
 
-    return f"Erro ao consultar a API do Groq (nenhum modelo respondeu): {' | '.join(erros)}"
+    return f"Erro ao consultar a API do Groq: {' | '.join(erros)}"
 
 # --- INTERFACE VISUAL (STREAMLIT) ---
 
@@ -81,7 +99,7 @@ for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
 # Campo de entrada de texto para o usuário
-if user_input := st.chat_input("Digite a sua dúvida sobre o SSW (ex: Como emitir CTRC?)..."):
+if user_input := st.chat_input("Digite a sua dúvida sobre o SSW (ex: O que a tela 600 faz?)..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     st.chat_message("user").write(user_input)
 
