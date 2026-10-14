@@ -1,3 +1,6 @@
 streamlit
 groq
 playwright
+openai
+requests
+beautifulsoup4
