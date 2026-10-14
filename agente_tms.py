@@ -20,43 +20,28 @@ def carregar_base_conhecimento_direta():
                 return texto
     return "Aviso: A base de conhecimento detalhada não foi encontrada."
 
-def obter_modelos_disponiveis():
-    modelos_padrao = [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-        "llama3-8b-8192"
-    ]
-    try:
-        resposta_modelos = client.models.list()
-        modelos_api = [m.id for m in resposta_modelos.data if "whisper" not in m.id and "guard" not in m.id]
-        if modelos_api:
-            return modelos_api
-    except Exception:
-        pass
-    return modelos_padrao
-
 def perguntar_ao_agente(duvida, base_conhecimento):
-    # Pega uma parte rica e profunda do meio/fim da base onde contêm as opções de menu e cursos (evitando índices iniciais)
-    base_resumida = base_conhecimento[5000:35000] if len(base_conhecimento) > 35000 else base_conhecimento
+    # Restringe a base enviada para uma quantidade segura de tokens, evitando o erro de limite (413)
+    base_resumida = base_conhecimento[:15000]
 
     prompt_sistema = (
-        "Você é um assistente técnico operacional estritamente focado no sistema TMS SSW. "
-        "O usuário fará uma pergunta sobre uma rotina do sistema (ex: emissão de CTRC, cadastros, baixas, faturamento).\n"
-        "Sua única tarefa é responder diretamente à pergunta utilizando os dados técnicos da documentação abaixo.\n"
-        "NÃO faça discursos introdutórios, NÃO diga que vai analisar a base e NÃO invente exemplos.\n\n"
-        "ESTRUTURA OBRIGATÓRIA DA RESPOSTA:\n"
-        "1. **Objetivo / Resumo:** O que é o processo.\n"
-        "2. **Opção de Menu:** Indique o código exato da opção (ex: Opção 004, Opção 038, etc.).\n"
-        "3. **Passo a Passo Prático:** Instruções operacionais detalhadas com base nos manuais.\n"
-        "4. **Observações:** Alertas importantes ou regras associadas."
+        "Você é um assistente técnico operacional especialista no sistema TMS SSW. "
+        "Sua função é ler a documentação técnica fornecida e responder à dúvida do operador de forma clara, "
+        "indicando sempre a opção correta do menu (ex: Opção 004, Opção 038, etc.) e o passo a passo prático.\n"
+        "Seja direto e objetivo, sem falas introdutórias genéricas."
     )
 
     prompt_usuario = f"DOCUMENTAÇÃO TÉCNICA SSW:\n{base_resumida}\n\nPERGUTA DO OPERADOR: {duvida}"
 
-    modelos_groq = obter_modelos_disponiveis()
+    # Lista estática e segura dos modelos oficiais da Groq (evita modelos experimentais restritos)
+    modelos_seguros = [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant"
+    ]
+
     erros = []
 
-    for modelo in modelos_groq:
+    for modelo in modelos_seguros:
         try:
             chat_completion = client.chat.completions.create(
                 messages=[
@@ -77,7 +62,7 @@ def perguntar_ao_agente(duvida, base_conhecimento):
 st.title("🚚 Suporte Técnico TMS SSW")
 st.caption("Assistente Inteligente alimentado pelos Manuais Oficiais do SSW")
 
-# Carrega a base de conhecimento de forma garantida
+# Carrega a base de conhecimento
 with st.spinner("A carregar base de conhecimento detalhada do SSW..."):
     base_ssw = carregar_base_conhecimento_direta()
 
