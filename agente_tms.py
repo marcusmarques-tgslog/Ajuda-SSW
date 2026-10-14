@@ -16,9 +16,9 @@ def carregar_base_conhecimento_direta():
     if os.path.exists(ARQUIVO_BASE):
         with open(ARQUIVO_BASE, "r", encoding="utf-8") as f:
             texto = f.read()
-            if len(texto.strip()) > 100:
+            if len(texto.strip()) > 50:
                 return texto
-    return "Aviso: A base de conhecimento detalhada não foi encontrada ou está vazia."
+    return "Aviso: A base de conhecimento detalhada não foi encontrada."
 
 def obter_modelos_disponiveis():
     modelos_padrao = [
@@ -36,22 +36,22 @@ def obter_modelos_disponiveis():
     return modelos_padrao
 
 def perguntar_ao_agente(duvida, base_conhecimento):
-    base_resumida = base_conhecimento[:25000]
+    # Pega uma parte rica e profunda do meio/fim da base onde contêm as opções de menu e cursos (evitando índices iniciais)
+    base_resumida = base_conhecimento[5000:35000] if len(base_conhecimento) > 35000 else base_conhecimento
 
     prompt_sistema = (
-        "Você é um consultor especialista sênior no sistema TMS SSW. "
-        "Sua função é ler atentamente a base de conhecimento técnica fornecida abaixo e responder à dúvida do usuário de forma completa, prática e objetiva.\n\n"
+        "Você é um assistente técnico operacional estritamente focado no sistema TMS SSW. "
+        "O usuário fará uma pergunta sobre uma rotina do sistema (ex: emissão de CTRC, cadastros, baixas, faturamento).\n"
+        "Sua única tarefa é responder diretamente à pergunta utilizando os dados técnicos da documentação abaixo.\n"
+        "NÃO faça discursos introdutórios, NÃO diga que vai analisar a base e NÃO invente exemplos.\n\n"
         "ESTRUTURA OBRIGATÓRIA DA RESPOSTA:\n"
-        "1. O que é / Objetivo: Uma breve explicação do processo ou funcionalidade solicitada.\n"
-        "2. Opção/Menu de Acesso: Informe claramente o código ou número da opção do menu no SSW (ex: Opção 004, Opção 038, Opção 056, etc.) que consta na documentação.\n"
-        "3. Passo a Passo Detalhado: Explique as etapas operacionais necessárias com base estritamente nos manuais.\n"
-        "4. Observações / Recomendações: Adicione alertas, regras fiscais ou dicas importantes relacionadas ao processo.\n\n"
-        "DIRETRIZES:\n"
-        "- Nunca diga que faltam informações genéricas se a resposta estiver mencionada na documentação abaixo.\n"
-        "- Se a dúvida for sobre emissão de CTRC, consulte os dados da Opção 004 / 005 / 006 presentes na base."
+        "1. **Objetivo / Resumo:** O que é o processo.\n"
+        "2. **Opção de Menu:** Indique o código exato da opção (ex: Opção 004, Opção 038, etc.).\n"
+        "3. **Passo a Passo Prático:** Instruções operacionais detalhadas com base nos manuais.\n"
+        "4. **Observações:** Alertas importantes ou regras associadas."
     )
 
-    prompt_usuario = f"BASE DE CONHECIMENTO OFICIAL SSW:\n{base_resumida}\n\nDÚVIDA DO OPERADOR:\n{duvida}"
+    prompt_usuario = f"DOCUMENTAÇÃO TÉCNICA SSW:\n{base_resumida}\n\nPERGUTA DO OPERADOR: {duvida}"
 
     modelos_groq = obter_modelos_disponiveis()
     erros = []
