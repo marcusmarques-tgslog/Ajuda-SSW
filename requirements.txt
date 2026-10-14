@@ -1,6 +1,4 @@
 streamlit
-groq
-playwright
-openai
+google-genai
 requests
 beautifulsoup4
