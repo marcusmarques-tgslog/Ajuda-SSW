@@ -2,17 +2,15 @@ import os
 import urllib.request
 from urllib.parse import urljoin, urlparse
 import streamlit as st
-from google import genai
+from groq import Groq
 
 # Configuração da página Web
 st.set_page_config(page_title="Assistente TMS SSW", page_icon="🚚", layout="centered")
 
-# CHAVE DA API DO GOOGLE GEMINI
-# Dica: Pode colocar a chave diretamente aqui ou via st.secrets["GOOGLE_API_KEY"]
-CHAVE_API_GOOGLE = st.secrets.get("GOOGLE_API_KEY", "SUA_CHAVE_GOOGLE_AQUI")
-
-# Inicializa o cliente do Google GenAI
-client = genai.Client(api_key=CHAVE_API_GOOGLE)
+# CHAVE DA API DO GROQ
+# Pode utilizar diretamente a chave ou puxar dos secrets do Streamlit: st.secrets.get("GROQ_API_KEY", "gsk_...")
+CHAVE_API_GROQ = "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"
+client = Groq(api_key=CHAVE_API_GROQ)
 
 URLS_SSW = [
     "https://sistema.ssw.inf.br/ajuda/visao_geral.htm",
@@ -86,8 +84,23 @@ def carregar_base_conhecimento(max_paginas=15):
     
     return resultado_final
 
+def obter_modelos_disponiveis():
+    modelos_padrao = [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "llama3-8b-8192"
+    ]
+    try:
+        resposta_modelos = client.models.list()
+        modelos_api = [m.id for m in resposta_modelos.data if "whisper" not in m.id and "guard" not in m.id]
+        if modelos_api:
+            return modelos_api
+    except Exception:
+        pass
+    return modelos_padrao
+
 def perguntar_ao_agente(duvida, base_conhecimento):
-    base_resumida = base_conhecimento[:15000]
+    base_resumida = base_conhecimento[:12000]
 
     prompt_sistema = """
     Você é um consultor especialista no sistema TMS SSW.
@@ -105,9 +118,7 @@ def perguntar_ao_agente(duvida, base_conhecimento):
     - Se a informação não constar na documentação, informe de forma gentil que os detalhes específicos não foram encontrados na base.
     """
 
-    prompt_completo = f"""
-    {prompt_sistema}
-
+    prompt_usuario = f"""
     DOCUMENTAÇÃO SSW:
     {base_resumida}
 
@@ -115,27 +126,29 @@ def perguntar_ao_agente(duvida, base_conhecimento):
     {duvida}
     """
 
-    # Modelos recomendados do Google Gemini (ex: gemini-2.5-flash ou gemini-2.5-pro)
-    modelos_google = ["gemini-2.5-flash", "gemini-2.5-pro"]
+    modelos_groq = obter_modelos_disponiveis()
     erros = []
 
-    for modelo in modelos_google:
+    for modelo in modelos_groq:
         try:
-            resposta = client.models.generate_content(
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": prompt_sistema},
+                    {"role": "user", "content": prompt_usuario}
+                ],
                 model=modelo,
-                contents=prompt_completo,
+                temperature=0.2,
             )
-            if resposta and resposta.text:
-                return resposta.text
+            return chat_completion.choices[0].message.content
         except Exception as e:
             erros.append(f"{modelo}: {e}")
 
-    return f"Erro ao consultar a API do Google Gemini: {' | '.join(erros)}"
+    return f"Erro ao consultar a API do Groq: {' | '.join(erros)}"
 
 # --- INTERFACE VISUAL (STREAMLIT) ---
 
 st.title("🚚 Suporte Técnico TMS SSW")
-st.caption("Assistente Inteligente alimentado pelo Google Gemini")
+st.caption("Assistente Inteligente alimentado pela API Groq")
 
 # Carrega a base em cache
 with st.spinner("Carregando base de conhecimento do SSW..."):
@@ -144,7 +157,7 @@ with st.spinner("Carregando base de conhecimento do SSW..."):
 # Inicializa o histórico de mensagens na sessão
 if "messages" not in st.session_state:
     st.session_state["messages"] = [
-        {"role": "assistant", "content": "Olá! Sou o seu assistente do TMS SSW alimentado pelo Google. Como posso ajudar hoje?"}
+        {"role": "assistant", "content": "Olá! Sou o seu assistente do TMS SSW. Como posso ajudar hoje?"}
     ]
 
 # Exibe as mensagens anteriores
@@ -157,7 +170,7 @@ if user_input := st.chat_input("Digite a sua dúvida sobre o SSW..."):
     st.chat_message("user").write(user_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("Consultando documentação no Google Gemini..."):
+        with st.spinner("Consultando documentação na Groq..."):
             resposta = perguntar_ao_agente(user_input, base_ssw)
             st.write(resposta)
             st.session_state.messages.append({"role": "assistant", "content": resposta})
