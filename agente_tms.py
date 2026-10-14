@@ -1,114 +1,88 @@
 import os
-import re
 import streamlit as st
-from groq import Groq
+from openai import OpenAI  # Ou a biblioteca de IA que estiver a utilizar (ex: Groq, LangChain, etc.)
 
-st.set_page_config(page_title="Assistente TMS SSW", page_icon="🚚", layout="centered")
+# Configuração da Página do Streamlit
+st.set_page_config(
+    page_title="Assistente Operacional SSW TMS",
+    page_icon="🚛",
+    layout="wide"
+)
 
-# Captura a API Key do Streamlit Secrets ou usa valor padrão
-if "CHAVE_API_GROQ" in st.secrets:
-    CHAVE_API_GROQ = st.secrets["CHAVE_API_GROQ"]
-else:
-    CHAVE_API_GROQ = "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"
+st.title("🚛 Assistente Operacional - SSW TMS")
+st.markdown("Agente inteligente especializado nas rotinas, opções de menu e manuais oficiais do sistema SSW.")
 
-client = Groq(api_key=CHAVE_API_GROQ)
-ARQUIVO_BASE = "base_conhecimento_ssw.txt"
+# Caminho do ficheiro de conhecimento profundo que gerámos
+CAMINHO_BASE = "base_conhecimento_ssw.txt"
 
-@st.cache_data
-def carregar_base():
-    """Lê a base completa com todas as telas gerada previamente."""
-    if os.path.exists(ARQUIVO_BASE):
-        with open(ARQUIVO_BASE, "r", encoding="utf-8") as f:
+@st.cache_resource
+def carregar_base_conhecimento():
+    """Carrega o conteúdo completo da base de conhecimento para a memória do agente."""
+    if os.path.exists(CAMINHO_BASE):
+        with open(CAMINHO_BASE, "r", encoding="utf-8") as f:
             return f.read()
-    return ""
+    else:
+        return "Aviso: Base de conhecimento não encontrada. Certifique-se de enviar o ficheiro."
 
-def buscar_contexto_relevante(duvida, base_conhecimento, limite_caracteres=16000):
-    """Filtra na base completa quais blocos de páginas/manuais contêm a resposta."""
-    if not base_conhecimento:
-        return ""
+base_texto = carregar_base_conhecimento()
 
-    palavras_chave = [p.lower() for p in re.findall(r'\w+', duvida) if len(p) > 2]
-    blocos = base_conhecimento.split("===")
-    
-    blocos_pontuados = []
-    for bloco in blocos:
-        if not bloco.strip():
-            continue
-        bloco_lower = bloco.lower()
-        # Calcula a relevância do bloco com base nas palavras buscadas
-        pontuacao = sum(bloco_lower.count(palavra) for palavra in palavras_chave)
-        if pontuacao > 0:
-            blocos_pontuados.append((pontuacao, "===" + bloco))
+# Inicializar o cliente de IA (exemplo com OpenAI ou compatível)
+# Certifique-se de configurar a sua chave de API nas variáveis de ambiente ou secrets do Streamlit
+api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", "")
 
-    blocos_pontuados.sort(key=lambda x: x[0], reverse=True)
-    
-    texto_selecionado = ""
-    for _, bloco_texto in blocos_pontuados:
-        if len(texto_selecionado) + len(bloco_texto) <= limite_caracteres:
-            texto_selecionado += "\n\n" + bloco_texto
-        else:
-            break
+if not api_key:
+    st.warning("⚠️ Chave de API não detetada. Por favor, configure a chave da API nas definições do Streamlit (st.secrets) ou variáveis de ambiente.")
+else:
+    client = OpenAI(api_key=api_key)
 
-    return texto_selecionado if texto_selecionado.strip() else base_conhecimento[:limite_caracteres]
+    # Histórico de mensagens no chat do Streamlit
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-def perguntar_ao_agente(historico_mensagens, base_conhecimento):
-    ultima_duvida = historico_mensagens[-1]["content"]
-    contexto_filtrado = buscar_contexto_relevante(ultima_duvida, base_conhecimento)
+    # Exibir mensagens anteriores
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-    prompt_sistema = f"""
-    Você é o assistente técnico oficial e especialista no sistema TMS SSW.
-    Sua única fonte de consulta é a documentação completa dos manuais do SSW fornecida abaixo.
+    # Entrada do utilizador
+    if prompt := st.chat_input("Ex: Como faço a emissão de CTRC na opção 004 ou a baixa de entrega na opção 038?"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-    DOCUMENTAÇÃO E MANUAIS DO SSW:
-    {contexto_filtrado}
+        # Construção do Prompt do Sistema injetando a Base de Conhecimento Oficial do SSW
+        system_prompt = f"""
+        Você é um assistente técnico e operacional especialista no Sistema SSW (TMS - Transportation Management System).
+        O seu objetivo é auxiliar os operadores de logística a resolverem dúvidas do dia a dia, indicando os passos corretos, 
+        códigos de opções do menu (ex: Opção 004, Opção 038, Opção 056, etc.) e regras de negócio com base estritamente na seguinte base de conhecimento oficial:
 
-    REGRAS DE RESPOSTA:
-    1. Identifique no texto a Opção/Menu do SSW referente à dúvida e exiba na primeira linha no formato:
-       **Opção / Menu SSW:** [Número ou Nome do Menu extraído da documentação]
-    2. Detalhe os passos práticos exatamente como descritos nos manuais do SSW.
-    3. Seja direto, prático e evite respostas genéricas.
-    4. NUNCA mencione "de acordo com o texto" ou "na documentação". Fale com propriedade como consultor do SSW.
-    5. Finalize sempre com: "💡 *Caso precise de mais detalhes sobre alguma etapa ou pré-requisito, basta me pedir!*"
-    """
+        === INÍCIO DA BASE DE CONHECIMENTO OFICIAL SSW ===
+        {base_texto}
+        === FIM DA BASE DE CONHECIMENTO ===
 
-    mensagens_payload = [{"role": "system", "content": prompt_sistema}]
-    for msg in historico_mensagens[-6:]:
-        mensagens_payload.append({"role": msg["role"], "content": msg["content"]})
+        Regras de resposta:
+        1. Responda sempre em Português de Portugal / PT-BR de forma clara, objetiva e profissional.
+        2. Baseie as suas respostas exclusivamente nos dados técnicos fornecidos na base de conhecimento acima.
+        3. Indique sempre a opção de menu correta correspondente à rotina perguntada quando aplicável.
+        4. Se a informação não estiver presente na base de conhecimento, informe educadamente que o manual correspondente não contém essa especificação.
+        """
 
-    try:
-        chat_completion = client.chat.completions.create(
-            messages=mensagens_payload,
-            model="llama-3.3-70b-versatile",
-            temperature=0.1,
-        )
-        return chat_completion.choices[0].message.content
-    except Exception as e:
-        return f"Erro ao consultar a inteligência da Groq: {e}"
+        # Mensagens para a API
+        mensagens_api = [{"role": "system", "content": system_prompt}]
+        for m in st.session_state.messages:
+            mensagens_api.append({"role": m["role"], "content": m["content"]})
 
-# --- INTERFACE VISUAL STREAMLIT ---
-
-st.title("🚚 Suporte Técnico TMS SSW")
-st.caption("Base Integrada com Mapeamento Completo de Telas do SSW")
-
-base_ssw = carregar_base()
-
-if not base_ssw:
-    st.warning("⚠️ O arquivo 'base_conhecimento_ssw.txt' não foi encontrado no repositório. Por favor, envie o arquivo gerado pelo script para o GitHub.")
-
-if "messages" not in st.session_state:
-    st.session_state["messages"] = [
-        {"role": "assistant", "content": "Olá! Sou o seu assistente do TMS SSW. Como posso ajudar com os menus e rotinas do sistema hoje?"}
-    ]
-
-for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
-
-if user_input := st.chat_input("Digite a sua dúvida sobre o SSW..."):
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    st.chat_message("user").write(user_input)
-
-    with st.chat_message("assistant"):
-        with st.spinner("A consultar documentação completa do SSW..."):
-            resposta = perguntar_ao_agente(st.session_state["messages"], base_ssw)
-            st.write(resposta)
-            st.session_state.messages.append({"role": "assistant", "content": resposta})
+        with st.chat_message("assistant"):
+            with st.spinner("A consultar os manuais oficiais do SSW..."):
+                try:
+                    # Chamada ao modelo de IA
+                    response = client.chat.completions.create(
+                        model="gpt-4o-mini",  # Ou outro modelo económico e rápido da sua preferência
+                        messages=mensagens_api,
+                        temperature=0.2
+                    )
+                    resposta_agente = response.choices[0].message.content
+                    st.markdown(resposta_agente)
+                    st.session_state.messages.append({"role": "assistant", "content": resposta_agente})
+                except Exception as e:
+                    st.error(fOcorreu um erro ao comunicar com a IA: {e}")
