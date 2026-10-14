@@ -85,4 +85,4 @@ else:
                     st.markdown(resposta_agente)
                     st.session_state.messages.append({"role": "assistant", "content": resposta_agente})
                 except Exception as e:
-                    st.error(fOcorreu um erro ao comunicar com a IA: {e}")
+                    st.error(f"Ocorreu um erro ao comunicar com a IA: {e}")
