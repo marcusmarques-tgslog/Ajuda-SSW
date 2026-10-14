@@ -21,8 +21,8 @@ def carregar_base_conhecimento_direta():
     return "Aviso: A base de conhecimento detalhada não foi encontrada."
 
 def perguntar_ao_agente(duvida, base_conhecimento):
-    # Restringe a base enviada para uma quantidade segura de tokens, evitando o erro de limite (413)
-    base_resumida = base_conhecimento[:15000]
+    # Restringe a base enviada para uma quantidade segura de tokens
+    base_resumida = base_conhecimento[:8000]
 
     prompt_sistema = (
         "Você é um assistente técnico operacional especialista no sistema TMS SSW. "
@@ -33,15 +33,19 @@ def perguntar_ao_agente(duvida, base_conhecimento):
 
     prompt_usuario = f"DOCUMENTAÇÃO TÉCNICA SSW:\n{base_resumida}\n\nPERGUTA DO OPERADOR: {duvida}"
 
-    # Lista estática e segura dos modelos oficiais da Groq (evita modelos experimentais restritos)
-    modelos_seguros = [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant"
+    # Lista ampliada com os modelos atualmente ativos na infraestrutura da Groq
+    modelos_disponiveis = [
+        "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b",
+        "qwen/qwen3-32b",
+        "meta-llama/llama-4-scout-17b-16e-instruct",
+        "llama-3.1-8b-instant",
+        "llama-3.3-70b-versatile"
     ]
 
     erros = []
 
-    for modelo in modelos_seguros:
+    for modelo in modelos_disponiveis:
         try:
             chat_completion = client.chat.completions.create(
                 messages=[
@@ -55,7 +59,7 @@ def perguntar_ao_agente(duvida, base_conhecimento):
         except Exception as e:
             erros.append(f"{modelo}: {e}")
 
-    return f"Erro ao consultar a API do Groq: {' | '.join(erros)}"
+    return f"Erro ao consultar a API do Groq (nenhum modelo respondeu): {' | '.join(erros)}"
 
 # --- INTERFACE VISUAL (STREAMLIT) ---
 
