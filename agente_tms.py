@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-from openai import OpenAI  # Ou a biblioteca de IA que estiver a utilizar (ex: Groq, LangChain, etc.)
+from openai import OpenAI
 
 # Configuração da Página do Streamlit
 st.set_page_config(
@@ -12,7 +12,7 @@ st.set_page_config(
 st.title("🚛 Assistente Operacional - SSW TMS")
 st.markdown("Agente inteligente especializado nas rotinas, opções de menu e manuais oficiais do sistema SSW.")
 
-# Caminho do ficheiro de conhecimento profundo que gerámos
+# Caminho do ficheiro de conhecimento profundo
 CAMINHO_BASE = "base_conhecimento_ssw.txt"
 
 @st.cache_resource
@@ -26,13 +26,13 @@ def carregar_base_conhecimento():
 
 base_texto = carregar_base_conhecimento()
 
-# Inicializar o cliente de IA (exemplo com OpenAI ou compatível)
-# Certifique-se de configurar a sua chave de API nas variáveis de ambiente ou secrets do Streamlit
-api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", "")
+# Chave API inserida diretamente (conforme solicitado para teste)
+api_key = "AQ.Ab8RN6LMNPalPJbn6cTeLHMrMeB7HSfXod2ZBGbgR2fiONUm0A"
 
 if not api_key:
-    st.warning("⚠️ Chave de API não detetada. Por favor, configure a chave da API nas definições do Streamlit (st.secrets) ou variáveis de ambiente.")
+    st.warning("⚠️ Chave de API não detetada.")
 else:
+    # Inicializa o cliente OpenAI (ou compatível)
     client = OpenAI(api_key=api_key)
 
     # Histórico de mensagens no chat do Streamlit
@@ -70,14 +70,15 @@ else:
         # Mensagens para a API
         mensagens_api = [{"role": "system", "content": system_prompt}]
         for m in st.session_state.messages:
-            mensagens_api.append({"role": m["role"], "content": m["content"]})
+        # Se for o formato de histórico do Streamlit, adaptamos para a API
+            if isinstance(m, dict) and "role" in m and "content" in m:
+                mensagens_api.append({"role": m["role"], "content": m["content"]})
 
         with st.chat_message("assistant"):
             with st.spinner("A consultar os manuais oficiais do SSW..."):
                 try:
-                    # Chamada ao modelo de IA
                     response = client.chat.completions.create(
-                        model="gpt-4o-mini",  # Ou outro modelo económico e rápido da sua preferência
+                        model="gpt-4o-mini",
                         messages=mensagens_api,
                         temperature=0.2
                     )
