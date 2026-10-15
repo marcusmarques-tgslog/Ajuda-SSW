@@ -94,6 +94,22 @@ def perguntar_ao_agente(duvida, base_conhecimento):
 st.title("🚚 Suporte Técnico TMS SSW")
 st.caption("Assistente Inteligente alimentado pelos Manuais Oficiais do SSW")
 
+# --- BARRA LATERAL (PAINEL DE TESTES / LOGS) ---
+with st.sidebar:
+    st.header("⚙️ Painel de Testes")
+    st.write("Aqui pode verificar as interações guardadas em segundo plano.")
+    
+    if st.button("🔄 Atualizar e Ver Logs"):
+        if os.path.exists(ARQUIVO_LOG_TESTES):
+            with open(ARQUIVO_LOG_TESTES, "r", encoding="utf-8") as f:
+                conteudo_log = f.read()
+            if conteudo_log.strip():
+                st.text_area("Histórico de Testes Guardado:", conteudo_log, height=300)
+            else:
+                st.info("O ficheiro de logs está atualmente vazio. Faça uma pergunta para testar.")
+        else:
+            st.warning("O ficheiro de log ainda não foi criado.")
+
 # Carrega a base de conhecimento
 with st.spinner("A carregar base de conhecimento detalhada do SSW..."):
     base_ssw = carregar_base_conhecimento_direta()
@@ -117,7 +133,7 @@ if user_input := st.chat_input("Digite a sua dúvida sobre o SSW (ex: O que a te
         with st.spinner("A consultar os manuais oficiais do SSW..."):
             resposta = perguntar_ao_agente(user_input, base_ssw)
             
-            # Grava automaticamente no ficheiro de log separado (tanto perguntas respondidas como falhas)
+            # Grava automaticamente no ficheiro de log separado
             registar_interacao_teste(user_input, resposta)
             
             st.write(resposta)
