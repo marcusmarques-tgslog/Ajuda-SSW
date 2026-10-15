@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 import streamlit as st
 from groq import Groq
 
@@ -10,6 +11,7 @@ CHAVE_API_GROQ = "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"
 client = Groq(api_key=CHAVE_API_GROQ)
 
 ARQUIVO_BASE = "base_conhecimento_ssw.txt"
+ARQUIVO_LOG_TESTES = "log_perguntas_testes.txt"
 
 def carregar_base_conhecimento_direta():
     """Lê diretamente o ficheiro de conhecimento profundo consolidado."""
@@ -19,6 +21,14 @@ def carregar_base_conhecimento_direta():
             if len(texto.strip()) > 50:
                 return texto
     return "Aviso: A base de conhecimento detalhada não foi encontrada."
+
+def registar_interacao_teste(duvida, resposta):
+    """Guarda todas as perguntas e respetivas respostas num ficheiro de texto separado."""
+    data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    bloco_log = f"[{data_hora}]\nPERGUTA: {duvida}\nRESPOSTA:\n{resposta}\n" + "-"*50 + "\n\n"
+    
+    with open(ARQUIVO_LOG_TESTES, "a", encoding="utf-8") as f:
+        f.write(bloco_log)
 
 def perguntar_ao_agente(duvida, base_conhecimento):
     # Procura inteligente: se a dúvida citar uma opção específica (ex: 600, 004), 
@@ -106,5 +116,9 @@ if user_input := st.chat_input("Digite a sua dúvida sobre o SSW (ex: O que a te
     with st.chat_message("assistant"):
         with st.spinner("A consultar os manuais oficiais do SSW..."):
             resposta = perguntar_ao_agente(user_input, base_ssw)
+            
+            # Grava automaticamente no ficheiro de log separado (tanto perguntas respondidas como falhas)
+            registar_interacao_teste(user_input, resposta)
+            
             st.write(resposta)
             st.session_state.messages.append({"role": "assistant", "content": resposta})
